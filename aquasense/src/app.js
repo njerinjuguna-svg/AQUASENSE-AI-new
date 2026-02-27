@@ -70,7 +70,8 @@ async function startServer() {
     console.log('✅ Tables synchronized');
 
     if (process.env.RUN_SEED === 'true') {
-      const runSeed = require('./seed');
+      const seedModule = require('./seed');
+      const runSeed = typeof seedModule === 'function' ? seedModule : seedModule.default;
       await runSeed();
     }
 
