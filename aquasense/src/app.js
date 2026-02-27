@@ -72,6 +72,13 @@ async function startServer() {
     await sequelize.sync({ alter: true });
     console.log('✅ Database tables synchronized');
 
+    // ── AUTO SEED (remove after first deploy) ──
+    if (process.env.RUN_SEED === 'true') {
+      const seed = require('./seed');
+      await seed();
+    }
+    // ───────────────────────────────────────────
+
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
       console.log(`🚀 AquaSense AI API running on port ${PORT}`);
