@@ -7,8 +7,6 @@ require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
 const app = express();
 
-// ✅ FIXED: Required for Render (and any reverse proxy) so rate limiter
-// can correctly identify users by IP instead of throwing a ValidationError
 app.set('trust proxy', 1);
 
 app.use(helmet());
@@ -50,6 +48,15 @@ app.use('/api/ai',       require('./routes/routes_ai'));
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', service: 'AquaSense AI API', timestamp: new Date() });
+});
+
+// TEMP DEBUG - remove after testing
+app.get('/debug-env', (req, res) => {
+  res.json({
+    resend_key_prefix: process.env.RESEND_API_KEY?.substring(0, 10),
+    email_from: process.env.EMAIL_FROM,
+    node_env: process.env.NODE_ENV
+  });
 });
 
 app.use((req, res) => {
