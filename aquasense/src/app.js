@@ -7,7 +7,10 @@ require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
 const app = express();
 
-// ─── Security Middleware ──────────────────────────────────────────────────────
+// ✅ FIXED: Required for Render (and any reverse proxy) so rate limiter
+// can correctly identify users by IP instead of throwing a ValidationError
+app.set('trust proxy', 1);
+
 app.use(helmet());
 app.use(cors());
 app.use(express.json({ limit: '10kb' }));
@@ -27,7 +30,6 @@ const authLimiter = rateLimit({
   message: { message: 'Too many login attempts. Please try again in 15 minutes.' }
 });
 
-// ─── Import Models & Define Relationships ─────────────────────────────────────
 const User    = require('./models/User');
 const Sensor  = require('./models/Sensor');
 const Reading = require('./models/Reading');
@@ -40,76 +42,44 @@ Reading.belongsTo(Sensor, { foreignKey: 'sensorId' });
 Reading.hasOne(Alert,     { foreignKey: 'ReadingId', onDelete: 'CASCADE' });
 Alert.belongsTo(Reading,  { foreignKey: 'ReadingId' });
 
-// ─── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api/users',    authLimiter, require('./routes/routes_users'));
 app.use('/api/sensors',  require('./routes/routes_sensors'));
 app.use('/api/readings', require('./routes/routes_readings'));
 app.use('/api/alerts',   require('./routes/routes_alerts'));
 app.use('/api/ai',       require('./routes/routes_ai'));
 
-// Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', service: 'AquaSense AI API', timestamp: new Date() });
 });
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({ message: `Route ${req.method} ${req.path} not found.` });
 });
 
-// Global error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ message: 'Internal server error.', error: process.env.NODE_ENV === 'development' ? err.message : undefined });
 });
 
-// ─── Start Server ─────────────────────────────────────────────────────────────
 async function startServer() {
   try {
     await sequelize.authenticate();
-    console.log('✅ PostgreSQL connected successfully');
+    console.log('✅ PostgreSQL connected');
 
     await sequelize.sync({ alter: true });
-    console.log('✅ Database tables synchronized');
+    console.log('✅ Tables synchronized');
 
-    // ── AUTO SEED (remove after first deploy) ──
     if (process.env.RUN_SEED === 'true') {
-      const seed = require('./seed');
-      await seed();
+      const runSeed = require('./seed');
+      await runSeed();
     }
-    // ───────────────────────────────────────────
 
     const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
-      console.log(`🚀 AquaSense AI API running on port ${PORT}`);
-    });
+    app.listen(PORT, () => console.log(`🚀 AquaSense AI API running on port ${PORT}`));
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    console.error('❌ Failed to start:', error);
     process.exit(1);
   }
 }
 
-async function startServer() {
-  try {
-    await sequelize.authenticate();
-    console.log('✅ PostgreSQL connected successfully');
-
-    await sequelize.sync({ alter: true });
-    console.log('✅ Database tables synchronized');
-
-    // ── AUTO SEED (remove after first deploy) ──
-    if (process.env.RUN_SEED === 'true') {
-      const seed = require('./seed');
-      await seed();
-    }
-    // ───────────────────────────────────────────
-
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
-      console.log(`🚀 AquaSense AI API running on port ${PORT}`);
-    });
-  } catch (error) {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
-  }
-}
+startServer();
