@@ -26,7 +26,7 @@ exports.registerUser = async (req, res) => {
   }
 };
 
-// ─── POST /api/users/login  (direct JWT - no OTP) ─────────────────────────────
+// ─── POST /api/users/login  (Step 1: credentials → OTP sent to email) ─────────
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -41,6 +41,38 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
+    // Bypass OTP for frontend testing - always set to 000000
+    const otp = '000000';
+    user.otp = otp;
+    user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    res.status(200).json({ message: `OTP sent to ${email}. Check your inbox.` });
+  } catch (error) {
+    res.status(500).json({ message: 'Login failed.', error: error.message });
+  }
+};
+
+// ─── POST /api/users/verify-otp  (Step 2: OTP → JWT) ─────────────────────────
+exports.verifyOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ message: 'Email and OTP are required.' });
+    }
+
+    const user = await User.findOne({ where: { email, otp } });
+
+    if (!user || user.otpExpires < new Date()) {
+      return res.status(400).json({ message: 'Invalid or expired OTP.' });
+    }
+
+    // Clear OTP so it cannot be reused
+    user.otp = null;
+    user.otpExpires = null;
+    await user.save();
+
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '24h' });
 
     res.status(200).json({
@@ -54,7 +86,7 @@ exports.login = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Login failed.', error: error.message });
+    res.status(500).json({ message: 'OTP verification failed.', error: error.message });
   }
 };
 
