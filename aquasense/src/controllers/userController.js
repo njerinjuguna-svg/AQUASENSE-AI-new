@@ -126,16 +126,16 @@ exports.forgotPassword = async (req, res) => {
     user.resetPasswordExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
     await user.save();
 
-    try {
-      await sendPasswordResetEmail(email, user.username, resetToken);
-    } catch (emailError) {
-      // Rollback token if email fails
-      user.resetPasswordToken = null;
-      user.resetPasswordExpires = null;
-      await user.save();
-      return res.status(500).json({ message: 'Failed to send reset email. Please try again.' });
-    }
-
+   try {
+  await sendPasswordResetEmail(email, user.username, resetToken);
+} catch (emailError) {
+  console.error('❌ Resend error:', JSON.stringify(emailError, null, 2));
+  // Rollback token if email fails
+  user.resetPasswordToken = null;
+  user.resetPasswordExpires = null;
+  await user.save();
+  return res.status(500).json({ message: 'Failed to send reset email. Please try again.', error: emailError.message });
+}
     res.status(200).json({ message: 'If that email exists, a reset link has been sent.' });
   } catch (error) {
     res.status(500).json({ message: 'Server error.', error: error.message });
